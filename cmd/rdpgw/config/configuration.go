@@ -1,19 +1,19 @@
 package config
 
 import (
-	"github.com/spf13/viper"
 	"log"
+
+	"github.com/spf13/viper"
 )
 
 type Configuration struct {
-	Server   ServerConfig
-	OpenId   OpenIDConfig
-	Caps     RDGCapsConfig
-	Security SecurityConfig
-	Client   ClientConfig
+	Server ServerConfig
+	Caps   RDGCapsConfig
+	Client ClientConfig
 }
 
 type ServerConfig struct {
+	PermitClientSubnet   string
 	GatewayAddress       string
 	Port                 int
 	CertFile             string
@@ -22,8 +22,8 @@ type ServerConfig struct {
 	RoundRobin           bool
 	SessionKey           string
 	SessionEncryptionKey string
-	SendBuf				 int
-	ReceiveBuf			 int
+	SendBuf              int
+	ReceiveBuf           int
 }
 
 type OpenIDConfig struct {
@@ -34,7 +34,6 @@ type OpenIDConfig struct {
 
 type RDGCapsConfig struct {
 	SmartCardAuth   bool
-	TokenAuth       bool
 	IdleTimeout     int
 	RedirectAll     bool
 	DisableRedirect bool
@@ -43,15 +42,6 @@ type RDGCapsConfig struct {
 	EnablePort      bool
 	EnablePnp       bool
 	EnableDrive     bool
-}
-
-type SecurityConfig struct {
-	PAATokenEncryptionKey  string
-	PAATokenSigningKey     string
-	UserTokenEncryptionKey string
-	UserTokenSigningKey    string
-	VerifyClientIp		   bool
-	EnableUserToken        bool
 }
 
 type ClientConfig struct {
@@ -64,12 +54,12 @@ type ClientConfig struct {
 }
 
 func init() {
+	viper.SetDefault("server.permitClientSubnet", "")
 	viper.SetDefault("server.certFile", "server.pem")
 	viper.SetDefault("server.keyFile", "key.pem")
 	viper.SetDefault("server.port", 443)
 	viper.SetDefault("client.networkAutoDetect", 1)
 	viper.SetDefault("client.bandwidthAutoDetect", 1)
-	viper.SetDefault("security.verifyClientIp", true)
 }
 
 func Load(configFile string) Configuration {
@@ -87,10 +77,6 @@ func Load(configFile string) Configuration {
 
 	if err := viper.Unmarshal(&conf); err != nil {
 		log.Fatalf("Cannot unmarshal the config file; %s", err)
-	}
-
-	if len(conf.Security.PAATokenSigningKey) < 32 {
-		log.Fatalf("Token signing key not long enough")
 	}
 
 	return conf

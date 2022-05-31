@@ -5,55 +5,41 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/common"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/common"
 )
 
-type VerifyTunnelCreate func(context.Context, string) (bool, error)
-type VerifyTunnelAuthFunc func(context.Context, string) (bool, error)
-type VerifyServerFunc func(context.Context, string) (bool, error)
-
 type Server struct {
-	Session              *SessionInfo
-	VerifyTunnelCreate   VerifyTunnelCreate
-	VerifyTunnelAuthFunc VerifyTunnelAuthFunc
-	VerifyServerFunc     VerifyServerFunc
-	RedirectFlags        int
-	IdleTimeout          int
-	SmartCardAuth        bool
-	TokenAuth            bool
-	ClientName           string
-	Remote               net.Conn
-	State                int
+	Session       *SessionInfo
+	RedirectFlags int
+	IdleTimeout   int
+	SmartCardAuth bool
+	ClientName    string
+	Remote        net.Conn
+	State         int
 }
 
 type ServerConf struct {
-	VerifyTunnelCreate   VerifyTunnelCreate
-	VerifyTunnelAuthFunc VerifyTunnelAuthFunc
-	VerifyServerFunc     VerifyServerFunc
-	RedirectFlags        RedirectFlags
-	IdleTimeout          int
-	SmartCardAuth        bool
-	TokenAuth            bool
-	ReceiveBuf           int
-	SendBuf              int
+	PermitClientSubnet string
+	RedirectFlags      RedirectFlags
+	IdleTimeout        int
+	SmartCardAuth      bool
+	ReceiveBuf         int
+	SendBuf            int
 }
 
 func NewServer(s *SessionInfo, conf *ServerConf) *Server {
 	h := &Server{
-		State:                SERVER_STATE_INITIAL,
-		Session:              s,
-		RedirectFlags:        makeRedirectFlags(conf.RedirectFlags),
-		IdleTimeout:          conf.IdleTimeout,
-		SmartCardAuth:        conf.SmartCardAuth,
-		TokenAuth:            conf.TokenAuth,
-		VerifyTunnelCreate:   conf.VerifyTunnelCreate,
-		VerifyServerFunc:     conf.VerifyServerFunc,
-		VerifyTunnelAuthFunc: conf.VerifyTunnelAuthFunc,
+		State:         SERVER_STATE_INITIAL,
+		Session:       s,
+		RedirectFlags: makeRedirectFlags(conf.RedirectFlags),
+		IdleTimeout:   conf.IdleTimeout,
+		SmartCardAuth: conf.SmartCardAuth,
 	}
 	return h
 }
@@ -86,13 +72,7 @@ func (s *Server) Process(ctx context.Context) error {
 					s.State, SERVER_STATE_HANDSHAKE)
 				return errors.New("wrong state")
 			}
-			_, cookie := s.tunnelRequest(pkt)
-			if s.VerifyTunnelCreate != nil {
-				if ok, _ := s.VerifyTunnelCreate(ctx, cookie); !ok {
-					log.Printf("Invalid PAA cookie received from client %s", common.GetClientIp(ctx))
-					return errors.New("invalid PAA cookie")
-				}
-			}
+			s.tunnelRequest(pkt)
 			msg := s.tunnelResponse()
 			s.Session.TransportOut.WritePacket(msg)
 			s.State = SERVER_STATE_TUNNEL_CREATE
@@ -103,13 +83,7 @@ func (s *Server) Process(ctx context.Context) error {
 					s.State, SERVER_STATE_TUNNEL_CREATE)
 				return errors.New("wrong state")
 			}
-			client := s.tunnelAuthRequest(pkt)
-			if s.VerifyTunnelAuthFunc != nil {
-				if ok, _ := s.VerifyTunnelAuthFunc(ctx, client); !ok {
-					log.Printf("Invalid client name: %s", client)
-					return errors.New("invalid client name")
-				}
-			}
+
 			msg := s.tunnelAuthResponse()
 			s.Session.TransportOut.WritePacket(msg)
 			s.State = SERVER_STATE_TUNNEL_AUTHORIZE
@@ -122,12 +96,6 @@ func (s *Server) Process(ctx context.Context) error {
 			}
 			server, port := s.channelRequest(pkt)
 			host := net.JoinHostPort(server, strconv.Itoa(int(port)))
-			if s.VerifyServerFunc != nil {
-				if ok, _ := s.VerifyServerFunc(ctx, host); !ok {
-					log.Printf("Not allowed to connect to %s by policy handler", host)
-					return errors.New("denied by security policy")
-				}
-			}
 			log.Printf("Establishing connection to RDP server: %s", host)
 			s.Remote, err = net.DialTimeout("tcp", host, time.Second*15)
 			if err != nil {
@@ -178,13 +146,6 @@ func (s *Server) Process(ctx context.Context) error {
 // but could be in Windows. However the NTLM protocol is insecure
 func (s *Server) handshakeResponse(major byte, minor byte) []byte {
 	var caps uint16
-	if s.SmartCardAuth {
-		caps = caps | HTTP_EXTENDED_AUTH_SC
-	}
-	if s.TokenAuth {
-		caps = caps | HTTP_EXTENDED_AUTH_PAA
-	}
-
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, uint32(0)) // error_code
 	buf.Write([]byte{major, minor})

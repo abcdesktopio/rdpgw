@@ -14,8 +14,8 @@ const (
 	TunnelCreateResponseLen = HeaderLen + 18
 	TunnelAuthLen           = HeaderLen + 2 // + dynamic
 	TunnelAuthResponseLen   = HeaderLen + 16
-	ChannelCreateLen		= HeaderLen + 8 // + dynamic
-	ChannelResponseLen		= HeaderLen + 12
+	ChannelCreateLen        = HeaderLen + 8 // + dynamic
+	ChannelResponseLen      = HeaderLen + 12
 )
 
 func verifyPacketHeader(data []byte, expPt uint16, expSize uint32) (uint16, uint32, []byte, error) {
@@ -41,9 +41,7 @@ func TestHandshake(t *testing.T) {
 		PAAToken: "abab",
 	}
 	s := &SessionInfo{}
-	hc := &ServerConf{
-		TokenAuth: true,
-	}
+	hc := &ServerConf{}
 	h := NewServer(s, hc)
 
 	data := client.handshakeRequest()
@@ -84,9 +82,7 @@ func TestTunnelCreation(t *testing.T) {
 		PAAToken: "abab",
 	}
 	s := &SessionInfo{}
-	hc := &ServerConf{
-		TokenAuth: true,
-	}
+	hc := &ServerConf{}
 	h := NewServer(s, hc)
 
 	data := client.tunnelRequest()
@@ -129,7 +125,6 @@ func TestTunnelAuth(t *testing.T) {
 	}
 	s := &SessionInfo{}
 	hc := &ServerConf{
-		TokenAuth:   true,
 		IdleTimeout: 10,
 		RedirectFlags: RedirectFlags{
 			Clipboard: true,
@@ -171,11 +166,10 @@ func TestChannelCreation(t *testing.T) {
 	server := "test_server"
 	client := ClientConfig{
 		Server: server,
-		Port: 3389,
+		Port:   3389,
 	}
 	s := &SessionInfo{}
 	hc := &ServerConf{
-		TokenAuth:   true,
 		IdleTimeout: 10,
 		RedirectFlags: RedirectFlags{
 			Clipboard: true,

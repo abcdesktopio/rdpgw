@@ -17,7 +17,6 @@ const (
 
 type ClientConfig struct {
 	SmartCardAuth bool
-	PAAToken      string
 	NTLMAuth      bool
 	Session       *SessionInfo
 	LocalConn     net.Conn
@@ -83,14 +82,6 @@ func (c *ClientConfig) ConnectAndForward() error {
 func (c *ClientConfig) handshakeRequest() []byte {
 	var caps uint16
 
-	if c.SmartCardAuth {
-		caps = caps | HTTP_EXTENDED_AUTH_SC
-	}
-
-	if len(c.PAAToken) > 0 {
-		caps = caps | HTTP_EXTENDED_AUTH_PAA
-	}
-
 	if c.NTLMAuth {
 		caps = caps | HTTP_EXTENDED_AUTH_SSPI_NTLM
 	}
@@ -129,25 +120,13 @@ func (c *ClientConfig) handshakeResponse(data []byte) (caps uint16, err error) {
 func (c *ClientConfig) tunnelRequest() []byte {
 	buf := new(bytes.Buffer)
 	var caps uint32
-	var size uint16
 	var fields uint16
-
-	if len(c.PAAToken) > 0 {
-		fields = fields | HTTP_TUNNEL_PACKET_FIELD_PAA_COOKIE
-	}
 
 	caps = caps | HTTP_CAPABILITY_IDLE_TIMEOUT
 
 	binary.Write(buf, binary.LittleEndian, caps)
 	binary.Write(buf, binary.LittleEndian, fields)
 	binary.Write(buf, binary.LittleEndian, uint16(0)) // reserved
-
-	if len(c.PAAToken) > 0 {
-		utf16Token := EncodeUTF16(c.PAAToken)
-		size = uint16(len(utf16Token))
-		binary.Write(buf, binary.LittleEndian, size)
-		buf.Write(utf16Token)
-	}
 
 	return createPacket(PKT_TYPE_TUNNEL_CREATE, buf.Bytes())
 }

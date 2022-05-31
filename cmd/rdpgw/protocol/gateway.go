@@ -3,17 +3,18 @@ package protocol
 import (
 	"context"
 	"errors"
-	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/common"
-	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/transport"
-	"github.com/gorilla/websocket"
-	"github.com/patrickmn/go-cache"
-	"github.com/prometheus/client_golang/prometheus"
 	"log"
 	"net"
 	"net/http"
 	"reflect"
 	"syscall"
 	"time"
+
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/common"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/transport"
+	"github.com/gorilla/websocket"
+	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -59,6 +60,26 @@ func init() {
 }
 
 func (g *Gateway) HandleGatewayProtocol(w http.ResponseWriter, r *http.Request) {
+
+	var RemoteAddr = r.RemoteAddr
+	log.Printf("RemoteAddr: %s", RemoteAddr)
+
+	if len(g.ServerConf.PermitClientSubnet) > 0 {
+		_, ipnet, err := net.ParseCIDR(g.ServerConf.PermitClientSubnet)
+		if err != nil {
+			http.Error(w, "invalid subnet in config", http.StatusForbidden)
+			return
+		}
+		var clientip = net.ParseIP(common.GetClientIp(r.Context()))
+		var isPermitClientSubnet = ipnet.Contains(clientip)
+		log.Printf("isPermitClientSubnet: %s", isPermitClientSubnet)
+		if !isPermitClientSubnet {
+			log.Printf("denied source ip addr: %s", clientip)
+			http.Error(w, "invalid ip addr", http.StatusForbidden)
+			return
+		}
+	}
+
 	connectionCache.Set(float64(c.ItemCount()))
 
 	var s *SessionInfo

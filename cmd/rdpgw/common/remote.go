@@ -38,6 +38,7 @@ func EnrichContext(next http.Handler) http.Handler {
 			clientIp, _, _ := net.SplitHostPort(r.RemoteAddr)
 			ctx = context.WithValue(ctx, ClientIPCtx, clientIp)
 		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
